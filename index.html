@@ -105,13 +105,13 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 let DATA = {};
 
 Promise.all([
-  fetch('data/tab1_matrix.json').then(r => r.json()),
-  fetch('data/tab1_cell_detail.json').then(r => r.json()),
-  fetch('data/tab2_trend.json').then(r => r.json()),
-  fetch('data/tab3_matrix.json').then(r => r.json()),
-  fetch('data/tab3_cell_detail.json').then(r => r.json()),
-  fetch('data/pt_series.json').then(r => r.json()),
-  fetch('data/pt_labels.json').then(r => r.json())
+  fetch('tab1_matrix.json').then(r => r.json()),
+  fetch('tab1_cell_detail.json').then(r => r.json()),
+  fetch('tab2_trend.json').then(r => r.json()),
+  fetch('tab3_matrix.json').then(r => r.json()),
+  fetch('tab3_cell_detail.json').then(r => r.json()),
+  fetch('pt_series.json').then(r => r.json()),
+  fetch('pt_labels.json').then(r => r.json())
 ]).then(([tab1Matrix, tab1CellDetail, tab2Trend, tab3Matrix, tab3CellDetail, ptSeries, ptLabels]) => {
   DATA.tab1Matrix = tab1Matrix;
   DATA.tab1CellDetail = tab1CellDetail.cells;
