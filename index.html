@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>FAERS 三高用藥動態訊號追蹤</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+  body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 0; background: #f7f7f9; }
+  header { background: #1f2937; color: white; padding: 16px 24px; }
+  header h1 { margin: 0; font-size: 20px; }
+  .tabs { display: flex; background: #e5e7eb; }
+  .tab-btn { flex: 1; padding: 12px; text-align: center; cursor: pointer; border: none; background: none; font-size: 15px; }
+  .tab-btn.active { background: #f7f7f9; font-weight: bold; border-bottom: 3px solid #2563eb; }
+  .tab-content { display: none; padding: 20px; }
+  .tab-content.active { display: block; }
+  .panel { background: white; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .slider-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .slider-row input[type=range] { flex: 1; }
+  #cellDetail table, #cellDetail2 table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #cellDetail th, #cellDetail td, #cellDetail2 th, #cellDetail2 td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; cursor: pointer; }
+  #cellDetail tr:hover, #cellDetail2 tr:hover { background: #f0f7ff; }
+  .placeholder { color: #999; padding: 40px; text-align: center; }
+  .hint { color: #666; font-size: 13px; margin: 4px 0 12px 0; }
+</style>
+</head>
+<body>
+
+<header><h1>FAERS 三高用藥動態訊號追蹤</h1></header>
+
+<div class="tabs">
+  <button class="tab-btn" data-tab="tab1">全貌總覽 (2004-2026)</button>
+  <button class="tab-btn active" data-tab="tab2">新興趨勢預警</button>
+  <button class="tab-btn" data-tab="tab3">歷史切點回顧</button>
+</div>
+
+<!-- ============ Tab 1：2004-2026 全貌總覽 ============ -->
+<div class="tab-content" id="tab1">
+  <div class="panel">
+    <div class="hint">格子顏色深淺 = 該分類×SOC底下，2004-2026累積下來，四種方法都判定訊號的PT數量。點擊格子看清單，點清單看逐年趨勢（趨勢圖從2016年起，因動態追蹤自該年開始）。</div>
+    <div id="heatmap1" style="width:100%;height:600px;"></div>
+  </div>
+  <div class="panel" id="cellPanel1" style="display:none;">
+    <h3 id="cellTitle1"></h3>
+    <div id="cellDetail1"></div>
+  </div>
+  <div class="panel" id="trendPanel1" style="display:none;">
+    <h3 id="trendTitle1"></h3>
+    <div id="trendChart1" style="width:100%;height:400px;"></div>
+  </div>
+</div>
+
+<!-- ============ Tab 2：新興趨勢預警 ============ -->
+<div class="tab-content active" id="tab2">
+  <div class="panel">
+    <div class="hint">格子顏色深淺 = 該分類×SOC底下，偵測到「長期穩定成長」的PT數量。點擊格子看清單，點清單看逐年趨勢。</div>
+    <div id="heatmap2" style="width:100%;height:600px;"></div>
+  </div>
+  <div class="panel" id="cellPanel2" style="display:none;">
+    <h3 id="cellTitle2"></h3>
+    <div id="cellDetail2"></div>
+  </div>
+  <div class="panel" id="trendPanel2" style="display:none;">
+    <h3 id="trendTitle2"></h3>
+    <div id="trendChart2" style="width:100%;height:400px;"></div>
+  </div>
+</div>
+
+<!-- ============ Tab 3：歷史切點回顧 ============ -->
+<div class="tab-content" id="tab3">
+  <div class="panel">
+    <div class="slider-row">
+      <span>切點：</span>
+      <input type="range" id="cutoffSlider" min="0" max="20" value="20" step="1">
+      <span id="cutoffLabel" style="min-width:100px; font-weight:bold;"></span>
+    </div>
+    <div class="hint">拖曳滑桿回顧累積到該時間點為止的訊號廣度快照。格子顏色 = 四種方法都判定訊號的PT數量。</div>
+    <div id="heatmap3" style="width:100%;height:600px;"></div>
+  </div>
+  <div class="panel" id="cellPanel3" style="display:none;">
+    <h3 id="cellTitle3"></h3>
+    <div id="cellDetail3"></div>
+  </div>
+  <div class="panel" id="trendPanel3" style="display:none;">
+    <h3 id="trendTitle3"></h3>
+    <div id="trendChart3" style="width:100%;height:400px;"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 分頁切換
+// ============================================================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ============================================================
+// 共用：載入資料
+// ============================================================
+let DATA = {};
+
+Promise.all([
+  fetch('data/tab1_matrix.json').then(r => r.json()),
+  fetch('data/tab1_cell_detail.json').then(r => r.json()),
+  fetch('data/tab2_trend.json').then(r => r.json()),
+  fetch('data/tab3_matrix.json').then(r => r.json()),
+  fetch('data/tab3_cell_detail.json').then(r => r.json()),
+  fetch('data/pt_series.json').then(r => r.json()),
+  fetch('data/pt_labels.json').then(r => r.json())
+]).then(([tab1Matrix, tab1CellDetail, tab2Trend, tab3Matrix, tab3CellDetail, ptSeries, ptLabels]) => {
+  DATA.tab1Matrix = tab1Matrix;
+  DATA.tab1CellDetail = tab1CellDetail.cells;
+  DATA.tab2Trend = tab2Trend;
+  DATA.tab3Matrix = tab3Matrix;
+  DATA.tab3CellDetail = tab3CellDetail.cells;
+  DATA.ptSeries = {};
+  ptSeries.forEach(s => { DATA.ptSeries[s.pk] = s; });
+  DATA.ptLabels = ptLabels;
+  DATA.cutoffs = tab3Matrix.cutoffs;
+  DATA.drugClasses = tab3Matrix.drugClasses;
+  DATA.socs = tab3Matrix.socs;
+
+  initTab1();
+  initTab2();
+  initTab3();
+}).catch(err => {
+  console.error('資料載入失敗:', err.message, err.stack);
+  document.body.insertAdjacentHTML('afterbegin',
+    '<div style="background:#fee;color:#900;padding:12px;">資料載入失敗，請確認 data/ 資料夾內的 JSON 檔案是否存在且路徑正確。錯誤訊息: ' + err + '</div>');
+});
+
+function formatCutoff(cstr) {
+  cstr = String(cstr);
+  // "20160101" -> "2016 H1"
+  const y = cstr.substring(0,4);
+  const m = cstr.substring(4,6);
+  return y + (m === "01" ? " 上半年" : " 下半年");
+}
+
+// ============================================================
+// Tab 1：2004-2026 全貌總覽熱圖
+// ============================================================
+function initTab1() {
+  const nClass = DATA.drugClasses.length;
+  const nSoc = DATA.socs.length;
+  const grid = Array.from({length: nClass}, () => Array(nSoc).fill(0));
+
+  DATA.tab1Matrix.cells.forEach(cell => {
+    const dIdx = DATA.drugClasses.indexOf(DATA.tab1Matrix.drugClasses[cell.d]);
+    const sIdx = DATA.socs.indexOf(DATA.tab1Matrix.socs[cell.s]);
+    if (dIdx >= 0 && sIdx >= 0) grid[dIdx][sIdx] = cell.n4;
+  });
+
+  DATA.tab1CellByKey = {};
+  DATA.tab1CellDetail.forEach(row => {
+    const dIdx = DATA.drugClasses.indexOf(DATA.tab1Matrix.drugClasses[row.d]);
+    const sIdx = DATA.socs.indexOf(DATA.tab1Matrix.socs[row.s]);
+    const key = dIdx + "_" + sIdx;
+    if (!DATA.tab1CellByKey[key]) DATA.tab1CellByKey[key] = [];
+    DATA.tab1CellByKey[key].push(row);
+  });
+
+  const plotData = [{
+    z: grid, x: DATA.socs, y: DATA.drugClasses, type: 'heatmap',
+    colorscale: [[0,'#E6F1FB'],[1,'#7b1fa2']], showscale: true,
+    hovertemplate: '%{y} × %{x}<br>強訊號PT數(2004-2026累積): %{z}<extra></extra>'
+  }];
+  const layout = {
+    margin: {l: 150, r: 20, t: 20, b: 150},
+    xaxis: {tickangle: -45, tickfont: {size: 10}},
+    yaxis: {tickfont: {size: 10}, autorange: 'reversed'}
+  };
+  Plotly.newPlot('heatmap1', plotData, layout, {responsive: true});
+
+  document.getElementById('heatmap1').on('plotly_click', function(evt) {
+    const pt = evt.points[0];
+    const dIdx = DATA.drugClasses.indexOf(pt.y);
+    const sIdx = DATA.socs.indexOf(pt.x);
+    showTab1Cell(dIdx, sIdx);
+  });
+}
+
+function showTab1Cell(dIdx, sIdx) {
+  const key = dIdx + "_" + sIdx;
+  const entries = (DATA.tab1CellByKey[key] || []).slice().sort((a,b) => b.ebgm - a.ebgm);
+  document.getElementById('cellPanel1').style.display = 'block';
+  document.getElementById('trendPanel1').style.display = 'none';
+  document.getElementById('cellTitle1').textContent =
+    DATA.drugClasses[dIdx] + ' × ' + DATA.socs[sIdx] + '（2004-2026累積強訊號PT，共 ' + entries.length + ' 個）';
+
+  if (entries.length === 0) {
+    document.getElementById('cellDetail1').innerHTML = '<div class="placeholder">此格沒有四種方法都判定為訊號的PT</div>';
+    return;
+  }
+  let html = '<table><tr><th>PT</th><th>案件數(a)</th><th>ROR</th><th>EBGM</th></tr>';
+  entries.forEach(e => {
+    const label = DATA.ptLabels[e.pk];
+    const hasTrend = DATA.ptSeries[e.pk] ? '' : '（無2016年後逐年資料）';
+    html += '<tr data-pk="' + e.pk + '"><td>' + label.pt + hasTrend + '</td><td>' + e.a +
+            '</td><td>' + e.ror + '</td><td>' + e.ebgm + '</td></tr>';
+  });
+  html += '</table>';
+  document.getElementById('cellDetail1').innerHTML = html;
+
+  document.querySelectorAll('#cellDetail1 tr[data-pk]').forEach(tr => {
+    tr.addEventListener('click', () => showPtTrend(parseInt(tr.dataset.pk), 'trendPanel1', 'trendTitle1', 'trendChart1'));
+  });
+}
+
+// ============================================================
+// Tab 2：新興趨勢預警熱圖
+// ============================================================
+function initTab2() {
+  const nClass = DATA.drugClasses.length;
+  const nSoc = DATA.socs.length;
+  const grid = Array.from({length: nClass}, () => Array(nSoc).fill(0));
+  const cellPts = {}; // "d_s" -> [trend entries]
+
+  DATA.tab2Trend.trends.forEach(t => {
+    grid[t.d][t.s] += 1;
+    const key = t.d + "_" + t.s;
+    if (!cellPts[key]) cellPts[key] = [];
+    cellPts[key].push(t);
+  });
+  DATA.tab2CellPts = cellPts;
+
+  const plotData = [{
+    z: grid,
+    x: DATA.socs,
+    y: DATA.drugClasses,
+    type: 'heatmap',
+    colorscale: [[0,'#E6F1FB'],[1,'#d32f2f']],
+    showscale: true,
+    hovertemplate: '%{y} × %{x}<br>新興趨勢PT數: %{z}<extra></extra>'
+  }];
+  const layout = {
+    margin: {l: 150, r: 20, t: 20, b: 150},
+    xaxis: {tickangle: -45, tickfont: {size: 10}},
+    yaxis: {tickfont: {size: 10}, autorange: 'reversed'}
+  };
+  Plotly.newPlot('heatmap2', plotData, layout, {responsive: true});
+
+  document.getElementById('heatmap2').on('plotly_click', function(evt) {
+    const pt = evt.points[0];
+    const dIdx = DATA.drugClasses.indexOf(pt.y);
+    const sIdx = DATA.socs.indexOf(pt.x);
+    showTab2Cell(dIdx, sIdx);
+  });
+}
+
+function showTab2Cell(dIdx, sIdx) {
+  const key = dIdx + "_" + sIdx;
+  const entries = (DATA.tab2CellPts[key] || []).slice().sort((a,b) => b.slope - a.slope);
+  document.getElementById('cellPanel2').style.display = 'block';
+  document.getElementById('trendPanel2').style.display = 'none';
+  document.getElementById('cellTitle2').textContent =
+    DATA.drugClasses[dIdx] + ' × ' + DATA.socs[sIdx] + '（長期穩定成長的PT，共 ' + entries.length + ' 個）';
+
+  if (entries.length === 0) {
+    document.getElementById('cellDetail2').innerHTML = '<div class="placeholder">此格目前沒有偵測到長期穩定成長的PT</div>';
+    return;
+  }
+  let html = '<table><tr><th>PT</th><th>斜率(每日EBGM成長)</th><th>p值</th><th>EBGM(首期→末期)</th></tr>';
+  entries.forEach(e => {
+    const label = DATA.ptLabels[e.pk];
+    html += '<tr data-pk="' + e.pk + '"><td>' + label.pt + '</td><td>' + e.slope.toFixed(4) +
+            '</td><td>' + e.pvalue + '</td><td>' + e.ebgmFirst + ' → ' + e.ebgmLast + '</td></tr>';
+  });
+  html += '</table>';
+  document.getElementById('cellDetail2').innerHTML = html;
+
+  document.querySelectorAll('#cellDetail2 tr[data-pk]').forEach(tr => {
+    tr.addEventListener('click', () => showPtTrend(parseInt(tr.dataset.pk), 'trendPanel2', 'trendTitle2', 'trendChart2'));
+  });
+}
+
+// ============================================================
+// Tab 3：歷史切點回顧
+// ============================================================
+function initTab3() {
+  const slider = document.getElementById('cutoffSlider');
+  slider.max = DATA.cutoffs.length - 1;
+  slider.value = DATA.cutoffs.length - 1;
+
+  // 依切點分組，方便快速查表
+  DATA.tab3ByCutoff = {};
+  DATA.tab3Matrix.cells.forEach(cell => {
+    if (!DATA.tab3ByCutoff[cell.c]) DATA.tab3ByCutoff[cell.c] = {};
+    DATA.tab3ByCutoff[cell.c][cell.d + "_" + cell.s] = cell;
+  });
+  DATA.tab3CellByKey = {};
+  DATA.tab3CellDetail.forEach(row => {
+    const key = row.c + "_" + row.d + "_" + row.s;
+    if (!DATA.tab3CellByKey[key]) DATA.tab3CellByKey[key] = [];
+    DATA.tab3CellByKey[key].push(row);
+  });
+
+  drawTab3Heatmap(parseInt(slider.value));
+  slider.addEventListener('input', () => drawTab3Heatmap(parseInt(slider.value)));
+}
+
+function drawTab3Heatmap(cutoffIdx) {
+  document.getElementById('cutoffLabel').textContent = formatCutoff(DATA.cutoffs[cutoffIdx]);
+  const nClass = DATA.drugClasses.length;
+  const nSoc = DATA.socs.length;
+  const grid = Array.from({length: nClass}, () => Array(nSoc).fill(0));
+  const byKey = DATA.tab3ByCutoff[cutoffIdx] || {};
+  for (const key in byKey) {
+    const [d, s] = key.split("_").map(Number);
+    grid[d][s] = byKey[key].n4;
+  }
+
+  const plotData = [{
+    z: grid,
+    x: DATA.socs,
+    y: DATA.drugClasses,
+    type: 'heatmap',
+    colorscale: [[0,'#E6F1FB'],[1,'red']],
+    showscale: true,
+    hovertemplate: '%{y} × %{x}<br>強訊號PT數: %{z}<extra></extra>'
+  }];
+  const layout = {
+    margin: {l: 150, r: 20, t: 20, b: 150},
+    xaxis: {tickangle: -45, tickfont: {size: 10}},
+    yaxis: {tickfont: {size: 10}, autorange: 'reversed'}
+  };
+  Plotly.newPlot('heatmap3', plotData, layout, {responsive: true});
+
+  document.getElementById('heatmap3').on('plotly_click', function(evt) {
+    const pt = evt.points[0];
+    const dIdx = DATA.drugClasses.indexOf(pt.y);
+    const sIdx = DATA.socs.indexOf(pt.x);
+    showTab3Cell(cutoffIdx, dIdx, sIdx);
+  });
+
+  // 若目前顯示中的細節面板還開著，同步更新內容
+  if (document.getElementById('cellPanel3').style.display !== 'none' && DATA.currentTab3Cell) {
+    showTab3Cell(cutoffIdx, DATA.currentTab3Cell.d, DATA.currentTab3Cell.s);
+  }
+}
+
+function showTab3Cell(cutoffIdx, dIdx, sIdx) {
+  DATA.currentTab3Cell = {d: dIdx, s: sIdx};
+  const key = cutoffIdx + "_" + dIdx + "_" + sIdx;
+  const entries = (DATA.tab3CellByKey[key] || []).slice().sort((a,b) => b.ebgm - a.ebgm);
+  document.getElementById('cellPanel3').style.display = 'block';
+  document.getElementById('cellTitle3').textContent =
+    DATA.drugClasses[dIdx] + ' × ' + DATA.socs[sIdx] + '（' + formatCutoff(DATA.cutoffs[cutoffIdx]) +
+    ' 累積強訊號PT，共 ' + entries.length + ' 個）';
+
+  if (entries.length === 0) {
+    document.getElementById('cellDetail3').innerHTML = '<div class="placeholder">此格在此時間點沒有強訊號PT</div>';
+    return;
+  }
+  let html = '<table><tr><th>PT</th><th>案件數(a)</th><th>ROR</th><th>EBGM</th></tr>';
+  entries.forEach(e => {
+    const label = DATA.ptLabels[e.pk];
+    html += '<tr data-pk="' + e.pk + '"><td>' + label.pt + '</td><td>' + e.a +
+            '</td><td>' + e.ror + '</td><td>' + e.ebgm + '</td></tr>';
+  });
+  html += '</table>';
+  document.getElementById('cellDetail3').innerHTML = html;
+
+  document.querySelectorAll('#cellDetail3 tr[data-pk]').forEach(tr => {
+    tr.addEventListener('click', () => showPtTrend(parseInt(tr.dataset.pk), 'trendPanel3', 'trendTitle3', 'trendChart3'));
+  });
+}
+
+// ============================================================
+// 共用元件：單一PT的逐年ROR趨勢圖（含95% CI帶狀圖）
+// ============================================================
+function showPtTrend(pk, panelId, titleId, chartId) {
+  const series = DATA.ptSeries[pk];
+  if (!series) return;
+  const label = DATA.ptLabels[pk];
+
+  document.getElementById(panelId).style.display = 'block';
+  document.getElementById(titleId).textContent = label.drugClass + ' — ' + label.pt + '：逐年 ROR 變化';
+
+  const xLabels = series.points.map(p => formatCutoff(DATA.cutoffs[p.c]));
+  const ror = series.points.map(p => p.ror);
+  const rorLb = series.points.map(p => p.rorLb);
+  const rorUb = series.points.map(p => p.rorUb);
+  const ebgm = series.points.map(p => p.ebgm);
+
+  const traces = [
+    { x: xLabels, y: rorUb, mode: 'lines', line: {width: 0}, showlegend: false, hoverinfo: 'skip' },
+    { x: xLabels, y: rorLb, mode: 'lines', line: {width: 0}, fill: 'tonexty',
+      fillcolor: 'rgba(37,99,235,0.15)', showlegend: false, hoverinfo: 'skip' },
+    { x: xLabels, y: ror, mode: 'lines+markers', name: 'ROR', line: {color: '#2563eb', width: 2} },
+    { x: xLabels, y: ebgm, mode: 'lines+markers', name: 'EBGM', line: {color: '#d32f2f', width: 2, dash: 'dot'} }
+  ];
+  const layout = {
+    margin: {l: 50, r: 20, t: 20, b: 80},
+    xaxis: {tickangle: -45},
+    yaxis: {title: 'ROR / EBGM'},
+    legend: {orientation: 'h', y: -0.3}
+  };
+  Plotly.newPlot(chartId, traces, layout, {responsive: true});
+
+  document.getElementById(panelId).scrollIntoView({behavior: 'smooth'});
+}
+</script>
+
+</body>
+</html>
