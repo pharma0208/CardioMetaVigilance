@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>FAERS 三高用藥動態訊號追蹤</title>
+<title>FAERS Cardiometabolic Drug Signal Tracking</title>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 <style>
-  body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 0; background: #f7f7f9; }
+  body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background: #f7f7f9; }
   header { background: #1f2937; color: white; padding: 16px 24px; }
   header h1 { margin: 0; font-size: 20px; }
   .tabs { display: flex; background: #e5e7eb; }
@@ -16,28 +16,31 @@
   .panel { background: white; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
   .slider-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
   .slider-row input[type=range] { flex: 1; }
-  #cellDetail table, #cellDetail2 table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  #cellDetail th, #cellDetail td, #cellDetail2 th, #cellDetail2 td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; cursor: pointer; }
-  #cellDetail tr:hover, #cellDetail2 tr:hover { background: #f0f7ff; }
+  #cellDetail1 table, #cellDetail2 table, #cellDetail3 table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #cellDetail1 th, #cellDetail1 td, #cellDetail2 th, #cellDetail2 td, #cellDetail3 th, #cellDetail3 td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; cursor: pointer; }
+  #cellDetail1 tr:hover, #cellDetail2 tr:hover, #cellDetail3 tr:hover { background: #f0f7ff; }
   .placeholder { color: #999; padding: 40px; text-align: center; }
   .hint { color: #666; font-size: 13px; margin: 4px 0 12px 0; }
+  .legend-row { display: flex; gap: 20px; align-items: center; margin-bottom: 10px; font-size: 13px; }
+  .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
 </style>
 </head>
 <body>
 
-<header><h1>FAERS 三高用藥動態訊號追蹤</h1></header>
+<header><h1>FAERS Cardiometabolic Drug Signal Tracking</h1></header>
 
 <div class="tabs">
-  <button class="tab-btn" data-tab="tab1">全貌總覽 (2004-2026)</button>
-  <button class="tab-btn active" data-tab="tab2">新興趨勢預警</button>
-  <button class="tab-btn" data-tab="tab3">歷史切點回顧</button>
+  <button class="tab-btn active" data-tab="tab1">Overview (2004-2026)</button>
+  <button class="tab-btn" data-tab="tab2">Emerging Trend Alerts</button>
+  <button class="tab-btn" data-tab="tab3">Historical Cutoff Review</button>
 </div>
 
-<!-- ============ Tab 1：2004-2026 全貌總覽 ============ -->
-<div class="tab-content" id="tab1">
+<!-- ============ Tab 1: 2004-2026 Cumulative Overview ============ -->
+<div class="tab-content active" id="tab1">
   <div class="panel">
-    <div class="hint">格子顏色深淺 = 該分類×SOC底下，2004-2026累積下來，四種方法都判定訊號的PT數量。點擊格子看清單，點清單看逐年趨勢（趨勢圖從2016年起，因動態追蹤自該年開始）。</div>
-    <div id="heatmap1" style="width:100%;height:600px;"></div>
+    <div class="legend-row" id="legend1"></div>
+    <div class="hint">Cell color = number of PTs confirmed as a signal by all 4 methods (ROR/PRR/BCPNN/MGPS), cumulative 2004-2026. Click a cell to see hotspot PTs; click a PT to see its 10-year ROR trend (trend data starts 2016, when dynamic tracking began).</div>
+    <div id="heatmap1" style="width:100%;height:650px;"></div>
   </div>
   <div class="panel" id="cellPanel1" style="display:none;">
     <h3 id="cellTitle1"></h3>
@@ -49,11 +52,12 @@
   </div>
 </div>
 
-<!-- ============ Tab 2：新興趨勢預警 ============ -->
-<div class="tab-content active" id="tab2">
+<!-- ============ Tab 2: Emerging Trend Alerts ============ -->
+<div class="tab-content" id="tab2">
   <div class="panel">
-    <div class="hint">格子顏色深淺 = 該分類×SOC底下，偵測到「長期穩定成長」的PT數量。點擊格子看清單，點清單看逐年趨勢。</div>
-    <div id="heatmap2" style="width:100%;height:600px;"></div>
+    <div class="legend-row" id="legend2"></div>
+    <div class="hint">Cell color = number of PTs showing a statistically significant, long-term upward trend (linear regression of EBGM over time, slope&gt;0, p&lt;0.05, present in &ge;4 cutoffs with &ge;3 cases). Click a cell to see the trending PTs; click a PT to see its ROR trend.</div>
+    <div id="heatmap2" style="width:100%;height:650px;"></div>
   </div>
   <div class="panel" id="cellPanel2" style="display:none;">
     <h3 id="cellTitle2"></h3>
@@ -65,16 +69,17 @@
   </div>
 </div>
 
-<!-- ============ Tab 3：歷史切點回顧 ============ -->
+<!-- ============ Tab 3: Historical Cutoff Review ============ -->
 <div class="tab-content" id="tab3">
   <div class="panel">
     <div class="slider-row">
-      <span>切點：</span>
+      <span>Cutoff:</span>
       <input type="range" id="cutoffSlider" min="0" max="20" value="20" step="1">
       <span id="cutoffLabel" style="min-width:100px; font-weight:bold;"></span>
     </div>
-    <div class="hint">拖曳滑桿回顧累積到該時間點為止的訊號廣度快照。格子顏色 = 四種方法都判定訊號的PT數量。</div>
-    <div id="heatmap3" style="width:100%;height:600px;"></div>
+    <div class="legend-row" id="legend3"></div>
+    <div class="hint">Drag the slider to review the cumulative signal snapshot as of that cutoff. Cell color = number of PTs confirmed as a signal by all 4 methods.</div>
+    <div id="heatmap3" style="width:100%;height:650px;"></div>
   </div>
   <div class="panel" id="cellPanel3" style="display:none;">
     <h3 id="cellTitle3"></h3>
@@ -88,7 +93,93 @@
 
 <script>
 // ============================================================
-// 分頁切換
+// Drug class -> broad category mapping (fixed, 30 classes)
+// ============================================================
+const CATEGORY_COLORS = {
+  'Antidiabetic': '#2a78d6',
+  'Antihypertensive': '#1baf7a',
+  'Lipid-lowering': '#eda100'
+};
+const CATEGORY_ORDER = ['Antidiabetic', 'Antihypertensive', 'Lipid-lowering'];
+const CLASS_TO_CATEGORY = {
+  'Biguanide': 'Antidiabetic', 'SGLT2 Inhibitor': 'Antidiabetic', 'Insulin': 'Antidiabetic',
+  'Thiazolidinedione': 'Antidiabetic', 'Sulfonylurea': 'Antidiabetic', 'DPP-4 Inhibitor': 'Antidiabetic',
+  'GLP-1 RA': 'Antidiabetic', 'Meglitinide': 'Antidiabetic', 'GIP/GLP-1 RA': 'Antidiabetic',
+  'Alpha-glucosidase Inhibitor': 'Antidiabetic',
+  'ARB': 'Antihypertensive', 'Beta Blocker': 'Antihypertensive', 'CCB': 'Antihypertensive',
+  'ACEI': 'Antihypertensive', 'Loop Diuretic': 'Antihypertensive', 'Thiazide Diuretic': 'Antihypertensive',
+  'Potassium-sparing Diuretic': 'Antihypertensive', 'Central Alpha Agonist': 'Antihypertensive',
+  'Direct Vasodilator': 'Antihypertensive', 'Alpha Blocker': 'Antihypertensive',
+  'Renin Inhibitor': 'Antihypertensive', 'ARNI': 'Antihypertensive',
+  'Statin': 'Lipid-lowering', 'Cholesterol Absorption Inhibitor': 'Lipid-lowering', 'Fibrate': 'Lipid-lowering',
+  'PCSK9 Inhibitor': 'Lipid-lowering', 'ACL Inhibitor': 'Lipid-lowering', 'Bile Acid Sequestrant': 'Lipid-lowering',
+  'Niacin': 'Lipid-lowering', 'PCSK9 siRNA': 'Lipid-lowering'
+};
+
+function categoryOf(className) {
+  return CLASS_TO_CATEGORY[className] || 'Antihypertensive';
+}
+
+/** 依三大類分組排序 drugClasses（組內原順序不變），回傳排序後的名稱陣列 */
+function groupDrugClasses(drugClasses) {
+  const groups = {Antidiabetic: [], Antihypertensive: [], 'Lipid-lowering': []};
+  drugClasses.forEach(d => { groups[categoryOf(d)].push(d); });
+  let result = [];
+  CATEGORY_ORDER.forEach(cat => { result = result.concat(groups[cat]); });
+  return result;
+}
+
+function renderLegend(elId) {
+  const el = document.getElementById(elId);
+  el.innerHTML = CATEGORY_ORDER.map(cat =>
+    '<span><span class="legend-dot" style="background:' + CATEGORY_COLORS[cat] + '"></span>' + cat + '</span>'
+  ).join('');
+}
+
+/**
+ * 畫一張「左側分類色條 + 右側資料熱圖」的雙軌 Plotly 圖，兩者共用同一組(已依分類排序的)Y軸
+ * dataZ: 2D array [orderedDrugClasses.length][socs.length]
+ */
+function drawGroupedHeatmap(divId, orderedDrugClasses, socs, dataZ, colorHigh, hoverLabel, onCellClick) {
+  const catZ = orderedDrugClasses.map(d => [CATEGORY_ORDER.indexOf(categoryOf(d))]);
+  const catColorscale = [
+    [0, CATEGORY_COLORS['Antidiabetic']], [0.33, CATEGORY_COLORS['Antidiabetic']],
+    [0.34, CATEGORY_COLORS['Antihypertensive']], [0.66, CATEGORY_COLORS['Antihypertensive']],
+    [0.67, CATEGORY_COLORS['Lipid-lowering']], [1, CATEGORY_COLORS['Lipid-lowering']]
+  ];
+
+  const traceStrip = {
+    type: 'heatmap', z: catZ, x: [''], y: orderedDrugClasses,
+    xaxis: 'x', yaxis: 'y',
+    colorscale: catColorscale, zmin: 0, zmax: 2, showscale: false, hoverinfo: 'skip'
+  };
+  const traceMain = {
+    type: 'heatmap', z: dataZ, x: socs, y: orderedDrugClasses,
+    xaxis: 'x2', yaxis: 'y',
+    colorscale: [[0, '#E6F1FB'], [1, colorHigh]], showscale: true,
+    hovertemplate: '%{y} \u00d7 %{x}<br>' + hoverLabel + ': %{z}<extra></extra>'
+  };
+
+  const layout = {
+    margin: {l: 150, r: 20, t: 10, b: 150},
+    xaxis: {domain: [0, 0.012], showticklabels: false, fixedrange: true},
+    xaxis2: {domain: [0.03, 1], tickangle: -45, tickfont: {size: 10}},
+    yaxis: {tickfont: {size: 10}, autorange: 'reversed'}
+  };
+
+  Plotly.newPlot(divId, [traceStrip, traceMain], layout, {responsive: true});
+
+  document.getElementById(divId).on('plotly_click', function(evt) {
+    const p = evt.points[0];
+    if (p.data.xaxis !== 'x2') return; // 忽略點到分類色條本身
+    const dIdx = orderedDrugClasses.indexOf(p.y);
+    const sIdx = socs.indexOf(p.x);
+    onCellClick(dIdx, sIdx);
+  });
+}
+
+// ============================================================
+// Tab switching
 // ============================================================
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -100,7 +191,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 // ============================================================
-// 共用：載入資料
+// Shared: load data
 // ============================================================
 let DATA = {};
 
@@ -124,14 +215,17 @@ Promise.all([
   DATA.cutoffs = tab3Matrix.cutoffs;
   DATA.drugClasses = tab3Matrix.drugClasses;
   DATA.socs = tab3Matrix.socs;
+  DATA.orderedDrugClasses = groupDrugClasses(DATA.drugClasses);
+
+  renderLegend('legend1'); renderLegend('legend2'); renderLegend('legend3');
 
   initTab1();
   initTab2();
   initTab3();
 }).catch(err => {
-  console.error('資料載入失敗:', err.message, err.stack);
+  console.error('Data load failed:', err.message, err.stack);
   document.body.insertAdjacentHTML('afterbegin',
-    '<div style="background:#fee;color:#900;padding:12px;">資料載入失敗，請確認 data/ 資料夾內的 JSON 檔案是否存在且路徑正確。錯誤訊息: ' + err + '</div>');
+    '<div style="background:#fee;color:#900;padding:12px;">Data load failed. Please check that the JSON files exist at the correct path. Error: ' + err + '</div>');
 });
 
 function formatCutoff(cstr) {
@@ -139,69 +233,58 @@ function formatCutoff(cstr) {
   // "20160101" -> "2016 H1"
   const y = cstr.substring(0,4);
   const m = cstr.substring(4,6);
-  return y + (m === "01" ? " 上半年" : " 下半年");
+  return y + (m === "01" ? " H1" : " H2");
 }
 
 // ============================================================
-// Tab 1：2004-2026 全貌總覽熱圖
+// Tab 1: 2004-2026 cumulative overview heatmap
 // ============================================================
 function initTab1() {
-  const nClass = DATA.drugClasses.length;
+  const ordered = DATA.orderedDrugClasses;
+  const nClass = ordered.length;
   const nSoc = DATA.socs.length;
   const grid = Array.from({length: nClass}, () => Array(nSoc).fill(0));
 
   DATA.tab1Matrix.cells.forEach(cell => {
-    const dIdx = DATA.drugClasses.indexOf(DATA.tab1Matrix.drugClasses[cell.d]);
-    const sIdx = DATA.socs.indexOf(DATA.tab1Matrix.socs[cell.s]);
+    const dName = DATA.tab1Matrix.drugClasses[cell.d];
+    const sName = DATA.tab1Matrix.socs[cell.s];
+    const dIdx = ordered.indexOf(dName);
+    const sIdx = DATA.socs.indexOf(sName);
     if (dIdx >= 0 && sIdx >= 0) grid[dIdx][sIdx] = cell.n4;
   });
 
   DATA.tab1CellByKey = {};
   DATA.tab1CellDetail.forEach(row => {
-    const dIdx = DATA.drugClasses.indexOf(DATA.tab1Matrix.drugClasses[row.d]);
-    const sIdx = DATA.socs.indexOf(DATA.tab1Matrix.socs[row.s]);
+    const dName = DATA.tab1Matrix.drugClasses[row.d];
+    const sName = DATA.tab1Matrix.socs[row.s];
+    const dIdx = ordered.indexOf(dName);
+    const sIdx = DATA.socs.indexOf(sName);
     const key = dIdx + "_" + sIdx;
     if (!DATA.tab1CellByKey[key]) DATA.tab1CellByKey[key] = [];
     DATA.tab1CellByKey[key].push(row);
   });
 
-  const plotData = [{
-    z: grid, x: DATA.socs, y: DATA.drugClasses, type: 'heatmap',
-    colorscale: [[0,'#E6F1FB'],[1,'#7b1fa2']], showscale: true,
-    hovertemplate: '%{y} × %{x}<br>強訊號PT數(2004-2026累積): %{z}<extra></extra>'
-  }];
-  const layout = {
-    margin: {l: 150, r: 20, t: 20, b: 150},
-    xaxis: {tickangle: -45, tickfont: {size: 10}},
-    yaxis: {tickfont: {size: 10}, autorange: 'reversed'}
-  };
-  Plotly.newPlot('heatmap1', plotData, layout, {responsive: true});
-
-  document.getElementById('heatmap1').on('plotly_click', function(evt) {
-    const pt = evt.points[0];
-    const dIdx = DATA.drugClasses.indexOf(pt.y);
-    const sIdx = DATA.socs.indexOf(pt.x);
-    showTab1Cell(dIdx, sIdx);
-  });
+  drawGroupedHeatmap('heatmap1', ordered, DATA.socs, grid, '#7b1fa2', 'Signal PTs (2004-2026)', showTab1Cell);
 }
 
 function showTab1Cell(dIdx, sIdx) {
+  const ordered = DATA.orderedDrugClasses;
   const key = dIdx + "_" + sIdx;
   const entries = (DATA.tab1CellByKey[key] || []).slice().sort((a,b) => b.ebgm - a.ebgm);
   document.getElementById('cellPanel1').style.display = 'block';
   document.getElementById('trendPanel1').style.display = 'none';
   document.getElementById('cellTitle1').textContent =
-    DATA.drugClasses[dIdx] + ' × ' + DATA.socs[sIdx] + '（2004-2026累積強訊號PT，共 ' + entries.length + ' 個）';
+    ordered[dIdx] + ' \u00d7 ' + DATA.socs[sIdx] + ' (2004-2026 cumulative, ' + entries.length + ' signal PTs)';
 
   if (entries.length === 0) {
-    document.getElementById('cellDetail1').innerHTML = '<div class="placeholder">此格沒有四種方法都判定為訊號的PT</div>';
+    document.getElementById('cellDetail1').innerHTML = '<div class="placeholder">No PT in this cell is confirmed as a signal by all 4 methods.</div>';
     return;
   }
-  let html = '<table><tr><th>PT</th><th>案件數(a)</th><th>ROR</th><th>EBGM</th></tr>';
+  let html = '<table><tr><th>PT</th><th>Cases (a)</th><th>ROR</th><th>EBGM</th></tr>';
   entries.forEach(e => {
     const label = DATA.ptLabels[e.pk];
-    const hasTrend = DATA.ptSeries[e.pk] ? '' : '（無2016年後逐年資料）';
-    html += '<tr data-pk="' + e.pk + '"><td>' + label.pt + hasTrend + '</td><td>' + e.a +
+    const noTrend = DATA.ptSeries[e.pk] ? '' : ' (no post-2016 trend data)';
+    html += '<tr data-pk="' + e.pk + '"><td>' + label.pt + noTrend + '</td><td>' + e.a +
             '</td><td>' + e.ror + '</td><td>' + e.ebgm + '</td></tr>';
   });
   html += '</table>';
@@ -213,63 +296,49 @@ function showTab1Cell(dIdx, sIdx) {
 }
 
 // ============================================================
-// Tab 2：新興趨勢預警熱圖
+// Tab 2: Emerging trend alert heatmap
 // ============================================================
 function initTab2() {
-  const nClass = DATA.drugClasses.length;
+  const ordered = DATA.orderedDrugClasses;
+  const nClass = ordered.length;
   const nSoc = DATA.socs.length;
   const grid = Array.from({length: nClass}, () => Array(nSoc).fill(0));
-  const cellPts = {}; // "d_s" -> [trend entries]
+  const cellPts = {};
 
   DATA.tab2Trend.trends.forEach(t => {
-    grid[t.d][t.s] += 1;
-    const key = t.d + "_" + t.s;
+    const dName = DATA.tab2Trend.drugClasses[t.d];
+    const sName = DATA.tab2Trend.socs[t.s];
+    const dIdx = ordered.indexOf(dName);
+    const sIdx = DATA.socs.indexOf(sName);
+    if (dIdx < 0 || sIdx < 0) return;
+    grid[dIdx][sIdx] += 1;
+    const key = dIdx + "_" + sIdx;
     if (!cellPts[key]) cellPts[key] = [];
     cellPts[key].push(t);
   });
   DATA.tab2CellPts = cellPts;
 
-  const plotData = [{
-    z: grid,
-    x: DATA.socs,
-    y: DATA.drugClasses,
-    type: 'heatmap',
-    colorscale: [[0,'#E6F1FB'],[1,'#d32f2f']],
-    showscale: true,
-    hovertemplate: '%{y} × %{x}<br>新興趨勢PT數: %{z}<extra></extra>'
-  }];
-  const layout = {
-    margin: {l: 150, r: 20, t: 20, b: 150},
-    xaxis: {tickangle: -45, tickfont: {size: 10}},
-    yaxis: {tickfont: {size: 10}, autorange: 'reversed'}
-  };
-  Plotly.newPlot('heatmap2', plotData, layout, {responsive: true});
-
-  document.getElementById('heatmap2').on('plotly_click', function(evt) {
-    const pt = evt.points[0];
-    const dIdx = DATA.drugClasses.indexOf(pt.y);
-    const sIdx = DATA.socs.indexOf(pt.x);
-    showTab2Cell(dIdx, sIdx);
-  });
+  drawGroupedHeatmap('heatmap2', ordered, DATA.socs, grid, '#d32f2f', 'Emerging trend PTs', showTab2Cell);
 }
 
 function showTab2Cell(dIdx, sIdx) {
+  const ordered = DATA.orderedDrugClasses;
   const key = dIdx + "_" + sIdx;
   const entries = (DATA.tab2CellPts[key] || []).slice().sort((a,b) => b.slope - a.slope);
   document.getElementById('cellPanel2').style.display = 'block';
   document.getElementById('trendPanel2').style.display = 'none';
   document.getElementById('cellTitle2').textContent =
-    DATA.drugClasses[dIdx] + ' × ' + DATA.socs[sIdx] + '（長期穩定成長的PT，共 ' + entries.length + ' 個）';
+    ordered[dIdx] + ' \u00d7 ' + DATA.socs[sIdx] + ' (long-term growing PTs, ' + entries.length + ')';
 
   if (entries.length === 0) {
-    document.getElementById('cellDetail2').innerHTML = '<div class="placeholder">此格目前沒有偵測到長期穩定成長的PT</div>';
+    document.getElementById('cellDetail2').innerHTML = '<div class="placeholder">No PT with a statistically significant long-term growth trend in this cell.</div>';
     return;
   }
-  let html = '<table><tr><th>PT</th><th>斜率(每日EBGM成長)</th><th>p值</th><th>EBGM(首期→末期)</th></tr>';
+  let html = '<table><tr><th>PT</th><th>Slope (EBGM/day)</th><th>p-value</th><th>EBGM (first \u2192 last)</th></tr>';
   entries.forEach(e => {
     const label = DATA.ptLabels[e.pk];
     html += '<tr data-pk="' + e.pk + '"><td>' + label.pt + '</td><td>' + e.slope.toFixed(4) +
-            '</td><td>' + e.pvalue + '</td><td>' + e.ebgmFirst + ' → ' + e.ebgmLast + '</td></tr>';
+            '</td><td>' + e.pvalue + '</td><td>' + e.ebgmFirst + ' \u2192 ' + e.ebgmLast + '</td></tr>';
   });
   html += '</table>';
   document.getElementById('cellDetail2').innerHTML = html;
@@ -280,14 +349,13 @@ function showTab2Cell(dIdx, sIdx) {
 }
 
 // ============================================================
-// Tab 3：歷史切點回顧
+// Tab 3: Historical cutoff review
 // ============================================================
 function initTab3() {
   const slider = document.getElementById('cutoffSlider');
   slider.max = DATA.cutoffs.length - 1;
   slider.value = DATA.cutoffs.length - 1;
 
-  // 依切點分組，方便快速查表
   DATA.tab3ByCutoff = {};
   DATA.tab3Matrix.cells.forEach(cell => {
     if (!DATA.tab3ByCutoff[cell.c]) DATA.tab3ByCutoff[cell.c] = {};
@@ -306,58 +374,50 @@ function initTab3() {
 
 function drawTab3Heatmap(cutoffIdx) {
   document.getElementById('cutoffLabel').textContent = formatCutoff(DATA.cutoffs[cutoffIdx]);
-  const nClass = DATA.drugClasses.length;
+  const ordered = DATA.orderedDrugClasses;
+  const nClass = ordered.length;
   const nSoc = DATA.socs.length;
   const grid = Array.from({length: nClass}, () => Array(nSoc).fill(0));
   const byKey = DATA.tab3ByCutoff[cutoffIdx] || {};
   for (const key in byKey) {
-    const [d, s] = key.split("_").map(Number);
-    grid[d][s] = byKey[key].n4;
+    const [dOrig, sOrig] = key.split("_").map(Number);
+    const dName = DATA.tab3Matrix.drugClasses[dOrig];
+    const sName = DATA.tab3Matrix.socs[sOrig];
+    const dIdx = ordered.indexOf(dName);
+    const sIdx = DATA.socs.indexOf(sName);
+    if (dIdx >= 0 && sIdx >= 0) grid[dIdx][sIdx] = byKey[key].n4;
   }
 
-  const plotData = [{
-    z: grid,
-    x: DATA.socs,
-    y: DATA.drugClasses,
-    type: 'heatmap',
-    colorscale: [[0,'#E6F1FB'],[1,'red']],
-    showscale: true,
-    hovertemplate: '%{y} × %{x}<br>強訊號PT數: %{z}<extra></extra>'
-  }];
-  const layout = {
-    margin: {l: 150, r: 20, t: 20, b: 150},
-    xaxis: {tickangle: -45, tickfont: {size: 10}},
-    yaxis: {tickfont: {size: 10}, autorange: 'reversed'}
-  };
-  Plotly.newPlot('heatmap3', plotData, layout, {responsive: true});
+  drawGroupedHeatmap('heatmap3', ordered, DATA.socs, grid, 'red', 'Signal PTs',
+    (dIdx, sIdx) => showTab3Cell(cutoffIdx, dIdx, sIdx));
 
-  document.getElementById('heatmap3').on('plotly_click', function(evt) {
-    const pt = evt.points[0];
-    const dIdx = DATA.drugClasses.indexOf(pt.y);
-    const sIdx = DATA.socs.indexOf(pt.x);
-    showTab3Cell(cutoffIdx, dIdx, sIdx);
-  });
-
-  // 若目前顯示中的細節面板還開著，同步更新內容
   if (document.getElementById('cellPanel3').style.display !== 'none' && DATA.currentTab3Cell) {
     showTab3Cell(cutoffIdx, DATA.currentTab3Cell.d, DATA.currentTab3Cell.s);
   }
 }
 
 function showTab3Cell(cutoffIdx, dIdx, sIdx) {
+  const ordered = DATA.orderedDrugClasses;
   DATA.currentTab3Cell = {d: dIdx, s: sIdx};
-  const key = cutoffIdx + "_" + dIdx + "_" + sIdx;
+
+  // tab3CellDetail 的 d/s 索引是原始(未排序)索引，要先轉換
+  const dNameOrig = ordered[dIdx];
+  const sNameOrig = DATA.socs[sIdx];
+  const dOrigIdx = DATA.tab3Matrix.drugClasses.indexOf(dNameOrig);
+  const sOrigIdx = DATA.tab3Matrix.socs.indexOf(sNameOrig);
+  const key = cutoffIdx + "_" + dOrigIdx + "_" + sOrigIdx;
+
   const entries = (DATA.tab3CellByKey[key] || []).slice().sort((a,b) => b.ebgm - a.ebgm);
   document.getElementById('cellPanel3').style.display = 'block';
   document.getElementById('cellTitle3').textContent =
-    DATA.drugClasses[dIdx] + ' × ' + DATA.socs[sIdx] + '（' + formatCutoff(DATA.cutoffs[cutoffIdx]) +
-    ' 累積強訊號PT，共 ' + entries.length + ' 個）';
+    ordered[dIdx] + ' \u00d7 ' + DATA.socs[sIdx] + ' (' + formatCutoff(DATA.cutoffs[cutoffIdx]) +
+    ' cumulative, ' + entries.length + ' signal PTs)';
 
   if (entries.length === 0) {
-    document.getElementById('cellDetail3').innerHTML = '<div class="placeholder">此格在此時間點沒有強訊號PT</div>';
+    document.getElementById('cellDetail3').innerHTML = '<div class="placeholder">No signal PT in this cell at this cutoff.</div>';
     return;
   }
-  let html = '<table><tr><th>PT</th><th>案件數(a)</th><th>ROR</th><th>EBGM</th></tr>';
+  let html = '<table><tr><th>PT</th><th>Cases (a)</th><th>ROR</th><th>EBGM</th></tr>';
   entries.forEach(e => {
     const label = DATA.ptLabels[e.pk];
     html += '<tr data-pk="' + e.pk + '"><td>' + label.pt + '</td><td>' + e.a +
@@ -372,7 +432,7 @@ function showTab3Cell(cutoffIdx, dIdx, sIdx) {
 }
 
 // ============================================================
-// 共用元件：單一PT的逐年ROR趨勢圖（含95% CI帶狀圖）
+// Shared component: single PT's yearly ROR trend chart (with 95% CI band)
 // ============================================================
 function showPtTrend(pk, panelId, titleId, chartId) {
   const series = DATA.ptSeries[pk];
@@ -380,7 +440,7 @@ function showPtTrend(pk, panelId, titleId, chartId) {
   const label = DATA.ptLabels[pk];
 
   document.getElementById(panelId).style.display = 'block';
-  document.getElementById(titleId).textContent = label.drugClass + ' — ' + label.pt + '：逐年 ROR 變化';
+  document.getElementById(titleId).textContent = label.drugClass + ' \u2014 ' + label.pt + ': ROR over time';
 
   const xLabels = series.points.map(p => formatCutoff(DATA.cutoffs[p.c]));
   const ror = series.points.map(p => p.ror);
